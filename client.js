@@ -283,7 +283,7 @@ window.__ModuleLoader__.load({
     /** 单个待导入条目：可改名、选工作区。 */
     function ImportRow({ item, workspaces, busy, draft, onPatch, onImport }) {
       // 原工作目录在本机不存在时必须先选工作区，否则没有落地的 cwd
-      const customCwd = (draft.cwd ?? '').trim()
+      const customCwd = String(draft.cwd ?? '').trim()
       const needTarget = item.cwdMissing === true && draft.workspaceId === '' && customCwd === ''
       return h('div', null,
         h('div', { className: 'smv-row' },
@@ -297,9 +297,9 @@ window.__ModuleLoader__.load({
             type: 'button',
             className: 'smv-btn',
             'data-primary': '1',
-            disabled: busy || draft.title.trim() === '' || needTarget,
+            disabled: busy || String(draft.title ?? '').trim() === '' || needTarget,
             title: needTarget ? '先选一个工作区，或填一个本机路径' : '导入',
-            onClick: () => onImport(item.name, { title: draft.title.trim(), workspaceId: draft.workspaceId, cwd: customCwd }),
+            onClick: () => onImport(item.name, { title: String(draft.title ?? '').trim(), workspaceId: draft.workspaceId, cwd: customCwd }),
           }, '导入')),
         h('div', { className: 'smv-picker' },
           h('span', { className: 'smv-picker-label' }, '会话名：'),
@@ -307,14 +307,14 @@ window.__ModuleLoader__.load({
             className: 'smv-text',
             value: draft.title,
             disabled: busy,
-            onChange: event => onPatch(item.name, { title: event.target.value }),
+            onChange: event => onPatch(item, { title: event.target.value }),
           }),
           h('span', { className: 'smv-picker-label' }, '工作区：'),
           h('select', {
             className: 'smv-select',
             value: draft.workspaceId,
             disabled: busy,
-            onChange: event => onPatch(item.name, { workspaceId: event.target.value }),
+            onChange: event => onPatch(item, { workspaceId: event.target.value }),
           },
           h('option', { value: '' }, item.cwdMissing ? '（不改就用下面的路径）' : '按原目录'),
           workspaces.map(workspace => h('option', { key: workspace.id, value: workspace.id }, workspace.title)))),
@@ -326,7 +326,7 @@ window.__ModuleLoader__.load({
               placeholder: '绝对路径，例如 /root/工作区',
               value: draft.cwd ?? '',
               disabled: busy,
-              onChange: event => onPatch(item.name, { cwd: event.target.value }),
+              onChange: event => onPatch(item, { cwd: event.target.value }),
             }))
           : null)
     }
@@ -335,14 +335,17 @@ window.__ModuleLoader__.load({
     function ImportPanel({ imports, workspaces, busy, paths, onImport }) {
       const [drafts, setDrafts] = useState({})
 
-      const draftFor = (item) => drafts[item.name] ?? {
+      const defaultDraft = (item) => ({
         title: item.title ?? item.name,
         workspaceId: (workspaces.find(workspace => workspace.path === item.cwd)?.id) ?? '',
         cwd: '',
-      }
-      const patch = (name, next) => setDrafts(current => ({
+      })
+      const draftFor = (item) => drafts[item.name] ?? defaultDraft(item)
+      // 每次都从默认值起步再叠用户改动：否则第一次只改工作区时，
+      // draft.title 会是 undefined，渲染时 .trim() 直接抛错（白屏）。
+      const patch = (item, next) => setDrafts(current => ({
         ...current,
-        [name]: { ...(current[name] ?? {}), ...next },
+        [item.name]: { ...defaultDraft(item), ...(current[item.name] ?? {}), ...next },
       }))
 
       const rows = imports.candidates.map((item) => {

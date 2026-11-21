@@ -282,16 +282,22 @@ window.__ModuleLoader__.load({
 
     /** 单个待导入条目：可改名、选工作区。 */
     function ImportRow({ item, workspaces, busy, draft, onPatch, onImport }) {
+      // 原工作目录在本机不存在时必须先选工作区，否则没有落地的 cwd
+      const needWorkspace = item.cwdMissing === true && draft.workspaceId === ''
       return h('div', null,
         h('div', { className: 'smv-row' },
           h('div', { className: 'smv-row-main' },
             h('div', { className: 'smv-row-title', title: item.name }, item.name),
-            h('div', { className: 'smv-row-id', title: item.cwd }, `${item.cwd}  ·  原 id ${item.sourceId}`)),
+            h('div', { className: 'smv-row-id', title: item.reason || item.cwd },
+              item.cwdMissing
+                ? `原目录不存在：${item.cwd}  ·  请下方选工作区`
+                : `${item.cwd}  ·  原 id ${item.sourceId}`)),
           h('button', {
             type: 'button',
             className: 'smv-btn',
             'data-primary': '1',
-            disabled: busy || draft.title.trim() === '',
+            disabled: busy || draft.title.trim() === '' || needWorkspace,
+            title: needWorkspace ? '先选一个目标工作区' : '导入',
             onClick: () => onImport(item.name, { title: draft.title.trim(), workspaceId: draft.workspaceId }),
           }, '导入')),
         h('div', { className: 'smv-picker' },
@@ -309,7 +315,7 @@ window.__ModuleLoader__.load({
             disabled: busy,
             onChange: event => onPatch(item.name, { workspaceId: event.target.value }),
           },
-          h('option', { value: '' }, '按原目录'),
+          h('option', { value: '' }, item.cwdMissing ? '必须选一个' : '按原目录'),
           workspaces.map(workspace => h('option', { key: workspace.id, value: workspace.id }, workspace.title)))))
     }
 

@@ -521,12 +521,12 @@ async function inspectImport(name) {
   }
   if (header?.type !== 'session') return { name, ok: false, reason: '头部不是 session 记录' }
   if (typeof header.id !== 'string' || header.id === '') return { name, ok: false, reason: '头部缺少会话 id' }
-  if (typeof header.cwd !== 'string' || !header.cwd.startsWith('/')) {
+  if (typeof header.cwd !== 'string' || header.cwd === '') {
     return { name, ok: false, reason: '头部缺少可用的工作目录' }
   }
-  if (!(await isDirectory(header.cwd))) {
-    return { name, ok: false, reason: `工作目录不存在：${header.cwd}` }
-  }
+  // 原目录不存在不算致命错误：换台机器导出再导入时原路径本来就没有，
+  // 只要导入时另选一个工作区就行。
+  const cwdMissing = !(await isDirectory(header.cwd))
   let title = ''
   try {
     const text = decodeLog(buffer).toString('utf8')
@@ -541,7 +541,8 @@ async function inspectImport(name) {
   return {
     name,
     ok: true,
-    reason: '',
+    reason: cwdMissing ? `原工作目录不存在：${header.cwd}（导入时请选一个工作区）` : '',
+    cwdMissing,
     title: title === '' ? name : title,
     cwd: header.cwd,
     sourceId: header.id,
@@ -598,6 +599,9 @@ async function importSession(ctx, name, options = {}) {
     if (registry === undefined) throw new Error('工作区服务还没就绪')
     targetWorkspace = registry.get(wantedWorkspace)
     if (targetWorkspace === undefined) throw new Error('目标工作区不存在')
+  }
+  if (targetWorkspace === undefined && inspection.cwdMissing) {
+    throw new Error('原工作目录在这台机器上不存在，请先选一个目标工作区再导入')
   }
   const targetCwd = targetWorkspace === undefined ? inspection.cwd : targetWorkspace.path
   if (!(await isDirectory(targetCwd))) throw new Error(`目标目录不存在：${targetCwd}`)

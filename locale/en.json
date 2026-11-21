@@ -1,0 +1,7 @@
+{
+  "meta": {
+    "title": "Session mover",
+    "description": "Adds a sidebar panel that moves a session to another workspace, remaps its QQ bot entry, deletes it behind a password, exports it to a folder, and imports a copy from a folder. Moving rewrites only the working directory and workspace membership; the session id and full history stay intact.",
+    "detail": "docs/DETAIL.md"
+  }
+}

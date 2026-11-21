@@ -1,0 +1,5 @@
+# Patch layer for @local/session-mover.
+# 只把宿主半注册成一个 cordis Loader 条目；浏览器半由 dsh.client 下发。
+- insert:
+    - id: '@local/session-mover'
+      name: '@local/session-mover'

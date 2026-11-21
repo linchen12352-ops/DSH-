@@ -23,7 +23,7 @@
 import { constants, zstdCompressSync, zstdDecompressSync } from 'node:zlib'
 import { cp, copyFile, mkdir, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises'
 import { randomUUID } from 'node:crypto'
-import { basename, dirname, join } from 'node:path'
+import { basename, dirname, isAbsolute, join } from 'node:path'
 import { homedir } from 'node:os'
 
 export const name = '@local/session-mover'
@@ -600,10 +600,19 @@ async function importSession(ctx, name, options = {}) {
     targetWorkspace = registry.get(wantedWorkspace)
     if (targetWorkspace === undefined) throw new Error('目标工作区不存在')
   }
-  if (targetWorkspace === undefined && inspection.cwdMissing) {
-    throw new Error('原工作目录在这台机器上不存在，请先选一个目标工作区再导入')
+  const wantedCwd = typeof options.cwd === 'string' ? options.cwd.trim() : ''
+  let targetCwd
+  if (targetWorkspace !== undefined) {
+    targetCwd = targetWorkspace.path
+  } else if (wantedCwd !== '') {
+    // 用户直接指定本机路径：原目录在别的机器上不存在时用这个
+    if (!isAbsolute(wantedCwd)) throw new Error(`要填绝对路径：${wantedCwd}`)
+    targetCwd = wantedCwd
+  } else if (inspection.cwdMissing) {
+    throw new Error('原工作目录在这台机器上不存在，请选一个工作区或填一个本机路径')
+  } else {
+    targetCwd = inspection.cwd
   }
-  const targetCwd = targetWorkspace === undefined ? inspection.cwd : targetWorkspace.path
   if (!(await isDirectory(targetCwd))) throw new Error(`目标目录不存在：${targetCwd}`)
   if (targetWorkspace !== undefined && targetWorkspace.sessionIds !== undefined) {
     // 无需额外校验：attachSession 会再用 header.cwd 复核一次
@@ -979,6 +988,7 @@ export function apply(ctx, config = {}) {
             const result = await importSession(ctx, name, {
               title: body.title,
               workspaceId: body.workspaceId,
+              cwd: body.cwd,
             })
             reply(res, 200, {
               ok: true,

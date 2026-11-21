@@ -283,22 +283,23 @@ window.__ModuleLoader__.load({
     /** 单个待导入条目：可改名、选工作区。 */
     function ImportRow({ item, workspaces, busy, draft, onPatch, onImport }) {
       // 原工作目录在本机不存在时必须先选工作区，否则没有落地的 cwd
-      const needWorkspace = item.cwdMissing === true && draft.workspaceId === ''
+      const customCwd = (draft.cwd ?? '').trim()
+      const needTarget = item.cwdMissing === true && draft.workspaceId === '' && customCwd === ''
       return h('div', null,
         h('div', { className: 'smv-row' },
           h('div', { className: 'smv-row-main' },
             h('div', { className: 'smv-row-title', title: item.name }, item.name),
             h('div', { className: 'smv-row-id', title: item.reason || item.cwd },
               item.cwdMissing
-                ? `原目录不存在：${item.cwd}  ·  请下方选工作区`
+                ? `原目录不存在：${item.cwd}  ·  请下方选工作区或填路径`
                 : `${item.cwd}  ·  原 id ${item.sourceId}`)),
           h('button', {
             type: 'button',
             className: 'smv-btn',
             'data-primary': '1',
-            disabled: busy || draft.title.trim() === '' || needWorkspace,
-            title: needWorkspace ? '先选一个目标工作区' : '导入',
-            onClick: () => onImport(item.name, { title: draft.title.trim(), workspaceId: draft.workspaceId }),
+            disabled: busy || draft.title.trim() === '' || needTarget,
+            title: needTarget ? '先选一个工作区，或填一个本机路径' : '导入',
+            onClick: () => onImport(item.name, { title: draft.title.trim(), workspaceId: draft.workspaceId, cwd: customCwd }),
           }, '导入')),
         h('div', { className: 'smv-picker' },
           h('span', { className: 'smv-picker-label' }, '会话名：'),
@@ -315,8 +316,19 @@ window.__ModuleLoader__.load({
             disabled: busy,
             onChange: event => onPatch(item.name, { workspaceId: event.target.value }),
           },
-          h('option', { value: '' }, item.cwdMissing ? '必须选一个' : '按原目录'),
-          workspaces.map(workspace => h('option', { key: workspace.id, value: workspace.id }, workspace.title)))))
+          h('option', { value: '' }, item.cwdMissing ? '（不改就用下面的路径）' : '按原目录'),
+          workspaces.map(workspace => h('option', { key: workspace.id, value: workspace.id }, workspace.title)))),
+        item.cwdMissing
+          ? h('div', { className: 'smv-picker' },
+            h('span', { className: 'smv-picker-label' }, '本机路径：'),
+            h('input', {
+              className: 'smv-text',
+              placeholder: '绝对路径，例如 /root/工作区',
+              value: draft.cwd ?? '',
+              disabled: busy,
+              onChange: event => onPatch(item.name, { cwd: event.target.value }),
+            }))
+          : null)
     }
 
     /** 会话导入面板：从导入目录里挑一个，导入时可改名、选工作区，并换成新的会话 id。 */
@@ -326,6 +338,7 @@ window.__ModuleLoader__.load({
       const draftFor = (item) => drafts[item.name] ?? {
         title: item.title ?? item.name,
         workspaceId: (workspaces.find(workspace => workspace.path === item.cwd)?.id) ?? '',
+        cwd: '',
       }
       const patch = (name, next) => setDrafts(current => ({
         ...current,
@@ -683,7 +696,7 @@ window.__ModuleLoader__.load({
           const body = await readJson(await fetch(IMPORT_URL, {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ name, title: options.title, workspaceId: options.workspaceId }),
+            body: JSON.stringify({ name, title: options.title, workspaceId: options.workspaceId, cwd: options.cwd }),
           }))
           setImports({ candidates: body.candidates ?? [], error: '' })
           setToast({ kind: 'ok', text: `${body.message ?? '已导入'}（新会话 id：${body.sessionId}）` })
